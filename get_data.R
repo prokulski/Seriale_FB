@@ -6,7 +6,6 @@ lista_stron <- c("diagnozatvn", "BELFERCanalPlusPolska", "WatahaHBO")
 library(Rfacebook)
 library(tidyverse)
 library(lubridate)
-library(tidytext)
 library(forcats)
 
 load("fb_oauth.rda")
@@ -50,8 +49,12 @@ get_post_comments <- function(post_id, token, n = 5000) {
 # pobranie postów
 fb_posts <- lista_stron %>% map_df(get_fanpage_posts, n_posts, fb_oauth)
 
+cat("\nPosty pobrane.\n\n")
+
 # pobranie komentarzy do postów
 fb_comments <- fb_posts$id %>% map_df(get_post_comments, fb_oauth, max(fb_posts$comments_count))
+
+cat("\nKomentarze do postów pobrane.\n\n")
 
 
 # poprawki w datach
@@ -60,12 +63,13 @@ fb_posts <- fb_posts %>%
    mutate(created_time = ymd_hms(created_time) %>%
              with_tz(tzone = "Europe/Warsaw")) %>%
    mutate(created_hour = hour(created_time),
-          created_weekday = wday(created_time, label = TRUE) %>%
-             factor(levels = c("Mon", "Tues", "Wed", "Thurs", "Fri", "Sat", "Sun"),
-                    labels = c("Pn", "Wt", "Śr", "Cz", "Pt", "Sb", "Nd")),
+          created_weekday = wday(created_time, label = TRUE, week_start = 1) %>%
+             factor(labels = c("Pn", "Wt", "Śr", "Cz", "Pt", "Sb", "Nd")),
           created_weeknum = isoweek(created_time))
 
 
 # zapisanie danych na później
 saveRDS(fb_posts, file = "fb_posts.RDS")
 saveRDS(fb_comments, file = "fb_comments.RDS")
+
+cat("\nDane zapisane lokalnie.\n\n")

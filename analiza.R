@@ -57,9 +57,8 @@ fb_data %>%
 # komcie - w którym dniu tygodnia i o jakiej godzine pojawiają się komentarze
 fb_data %>%
    mutate(comment_created_hour = hour(comment_created_time),
-          comment_created_weekday = wday(comment_created_time, label = TRUE) %>%
-             factor(levels = c("Mon", "Tues", "Wed", "Thurs", "Fri", "Sat", "Sun"),
-                    labels = c("Pn", "Wt", "Śr", "Cz", "Pt", "Sb", "Nd"))) %>%
+          comment_created_weekday = wday(comment_created_time, label = TRUE, week_start = 1) %>%
+             factor(labels = c("Pn", "Wt", "Śr", "Cz", "Pt", "Sb", "Nd"))) %>%
    count(post_from_name, comment_created_weekday, comment_created_hour) %>%
    ungroup() %>%
    # tylko gó○rna ćwiartka per strona
@@ -76,7 +75,7 @@ fb_data %>%
 
 
 # teksty
-pl_stop_words <- read_lines("polish_stopwords.txt")
+pl_stop_words <- read_lines("../!polimorfologik/polish_stopwords.txt")
 pl_stop_words <- c(pl_stop_words,
                    "canal", "http", "https", "www.hbo.pl", "hbo", "diagnoza.tvn.pl", "html", "youtu.be", "bit.ly", "www.wirtualnemedia.pl", "magicznebieszczady")
 
@@ -125,8 +124,8 @@ fb_comments_messages %>%
    arrange(desc(word)) %>%
    mutate(word = fct_inorder(word)) %>%
    ggplot() +
-   geom_tile(aes(post_from_name, word, fill = n))
-
+   geom_tile(aes(post_from_name, word, fill = n)) +
+   scale_fill_distiller(palette = "RdYlGn")
 
 
 fb_comments_messages %>%
