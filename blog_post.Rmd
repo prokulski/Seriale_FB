@@ -1,3 +1,60 @@
+---
+title: "Untitled"
+author: "Łukasz Prokulski"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document:
+    fig_height: 6
+    fig_width: 8
+    self_contained: no
+---
+
+```{r document_setup, echo=FALSE, message=FALSE, error=FALSE, warning=FALSE}
+library(tidyverse)
+library(printr)
+library(knitr)
+library(kableExtra)
+
+# chunks options
+opts_chunk$set(message = FALSE, error = FALSE, warning = FALSE)
+options(knitr.table.format = "html") 
+
+
+# some better colours theme :)
+theme_set(theme_minimal() +
+             theme(plot.title = element_text(family = NULL, face = "bold", size = 18, color = "black"),
+                   plot.subtitle = element_text(family = NULL, face = "plain", size = 12, color = "black"),
+                   plot.caption = element_text(family = NULL, face = "italic", size = 9, color = "darkgray"),
+                   plot.background = element_rect(fill="#efefef", color="#aaaaaa"),
+                   panel.background = element_rect(fill = "white", color="black"),
+                   strip.text.x = element_text(face = "bold")))
+```
+
+
+Plan:
+
+* pobranie danych
+* kiedy publikowane są posty
+   + dzień po dniu (time line) - liczba postów danego dnia
+   + dzień tygodnia i godzina
+* kiedy publikowane są komentarze
+   + dzień po dniu (time line) - liczba komentarzy danego dnia
+   + liczba komentarzy na post w czasie
+   + w którym dniu tygodnia i o jakiej godzine pojawiają się komentarze
+   + jak długo żyje post (rozkład czasu publikacji post -> komentarz)
+   + skąd przesunięcie ponad tydzień?
+* teksty
+   + najpopularniejsze słowa w postach
+   + najpopularniejsze słowa w komentarzach wg fanpage
+* użytkownicy
+   + kto najwięcej komentuje?
+   + czy są tacy którzy udzielają się na wszystkich fanpage'ach?
+   
+
+# setup srodowiska
+
+```{r}
 rm(list = ls())
 
 library(tidyverse)
@@ -5,28 +62,32 @@ library(lubridate)
 library(tidytext)
 library(forcats)
 
-
 library(knitr)
 library(kableExtra)
-options(knitr.table.format = "html")
+options(knitr.table.format = "html") 
+```
 
+# wczytanie  danych
 
-
+```{r}
 fb_posts <- readRDS("fb_posts.RDS")
 fb_comments <- readRDS("fb_comments.RDS")
-
+```
 
 # łączymy obie tabele
+
+```{r}
 fb_data <- left_join(fb_comments,
                      fb_posts %>% select(id, created_time),
                      by = c("post_id" = "id")) %>%
    rename(post_created_time = created_time) %>%
    mutate(comment_created_time = ymd_hms(comment_created_time) %>% with_tz(tzone = "Europe/Warsaw")) %>%
    mutate(post_created_time = ymd_hms(post_created_time) %>% with_tz(tzone = "Europe/Warsaw"))
-
-
+```
 
 # liczba postów publikowanych dzień po dniu
+
+```{r}
 fb_posts %>%
    filter(year(created_time) == 2017) %>%
    mutate(day = date(created_time)) %>%
@@ -37,9 +98,11 @@ fb_posts %>%
    labs(title = "Liczba postów publikowanych na fanpage seriali, dzień po dniu",
         x = "Data", y = "Liczba postów", color = "") +
    theme(legend.position = "bottom")
-
+```
 
 # liczba postów publikowana w godzinach/tydzień
+
+```{r}
 fb_posts %>%
    filter(year(created_time) == 2017) %>%
    by(.$from_name,
@@ -55,9 +118,11 @@ fb_posts %>%
             theme(legend.position = "bottom")
       }
    )
-
+```
 
 # liczba komentarzy publikowanych dzień po dniu
+
+```{r}
 fb_data %>%
    filter(year(post_created_time) == 2017) %>%
    mutate(day = date(comment_created_time)) %>%
@@ -69,10 +134,11 @@ fb_data %>%
    labs(title = "Liczba komentarzy publikowanych na fanpage seriali, dzień po dniu",
         x = "Data", y = "Liczba komentarzy (skala logarytmiczna)", color = "") +
    theme(legend.position = "bottom")
-
-
+```
 
 # liczba komentarzy/post publikowanych dzień po dniu
+
+```{r}
 fb_posts %>%
    filter(year(created_time) == 2017) %>%
    mutate(day = date(created_time)) %>%
@@ -85,10 +151,34 @@ fb_posts %>%
    labs(title = "Liczba komentarzy/post publikowanych na fanpage seriali, dzień po dniu",
         x = "Data", y = "Liczba komentarzy/post", color = "") +
    theme(legend.position = "bottom")
+```
 
+# komcie - w którym dniu tygodnia i o jakiej godzine pojawiają się komentarze
 
+```{r}
+fb_data %>%
+   mutate(comment_created_hour = hour(comment_created_time),
+          comment_created_weekday = wday(comment_created_time, label = TRUE) %>%
+             factor(levels = c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"),
+                    labels = c("Pn", "Wt", "Śr", "Cz", "Pt", "Sb", "Nd"))) %>%
+   by(.$post_from_name,
+      function(x) {
+         x %>%
+            count(comment_created_weekday, comment_created_hour) %>%
+            ungroup() %>%
+            ggplot() +
+            geom_tile(aes(comment_created_weekday, comment_created_hour, fill = n), color = "gray80", show.legend = FALSE) +
+            scale_fill_distiller(palette = "RdYlGn") +
+            scale_y_reverse() +
+            labs(title = paste(unique(x$post_from_name), "- kiedy pojawiaja sie komentarze?"),
+                 x = "", y = "Godzina")
+      }
+   )
+```
 
 # aktywność na stronie w ciągu tygodnia
+
+```{r}
 fb_posts %>%
    filter(year(created_time) == 2017) %>%
    by(.$from_name,
@@ -116,10 +206,11 @@ fb_posts %>%
 
       }
    )
-
-
+```
 
 # jak szybko pojawiaja sie komentarze?
+
+```{r}
 fb_data %>%
    mutate(delta_time = as.numeric(comment_created_time - post_created_time)/3600) %>%
    filter(delta_time > 0) %>%
@@ -131,9 +222,11 @@ fb_data %>%
    labs(title = "Czas jaki mija od publikacji posta do publikacji komentarza",
         x = "", y = "Gestość prawdopodobieństwa", fill = "Fanpage") +
    theme(legend.position = "bottom")
-
+```
 
 # komcie w Belfrze
+
+```{r}
 fb_data %>%
    mutate(delta_time = as.numeric(comment_created_time - post_created_time)/3600) %>%
    filter(post_from_name == "Belfer") %>%
@@ -143,10 +236,14 @@ fb_data %>%
    top_n(10, m_delta_time) %>%
    left_join(fb_posts %>% select(id, message), by = c("post_id"="id")) %>%
    select(-post_id) %>%
-   arrange(desc(m_delta_time))
-
+   arrange(desc(m_delta_time)) %>%
+   kable() %>%
+   kable_styling(bootstrap_options = "striped", full_width = F)
+```
 
 # który post żył tak długo?
+
+```{r}
 fb_data %>%
    mutate(delta_time = as.numeric(comment_created_time - post_created_time)/3600) %>%
    filter(post_from_name == "Belfer") %>%
@@ -156,33 +253,14 @@ fb_data %>%
    top_n(1, m_delta_time) %>%
    select(post_id) %>%
    left_join(fb_data, by = "post_id") %>%
-   select(post_created_time, comment_created_time, comment_message)
-
-
-# komcie - w którym dniu tygodnia i o jakiej godzine pojawiają się komentarze
-fb_data %>%
-   mutate(comment_created_hour = hour(comment_created_time),
-          comment_created_weekday = wday(comment_created_time, label = TRUE) %>%
-             factor(levels = c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"),
-                    labels = c("Pn", "Wt", "Śr", "Cz", "Pt", "Sb", "Nd"))) %>%
-   by(.$post_from_name,
-      function(x) {
-         x %>%
-            count(comment_created_weekday, comment_created_hour) %>%
-            ungroup() %>%
-            ggplot() +
-            geom_tile(aes(comment_created_weekday, comment_created_hour, fill = n), color = "gray80", show.legend = FALSE) +
-            scale_fill_distiller(palette = "RdYlGn") +
-            scale_y_reverse() +
-            labs(title = paste(unique(x$post_from_name), "- kiedy pojawiaja sie komentarze?"),
-                 x = "", y = "Godzina")
-      }
-   )
-
-
-
+   select(post_created_time, comment_created_time, comment_message) %>%
+   kable() %>%
+   kable_styling(bootstrap_options = "striped", full_width = F)
+```
 
 # teksty
+
+```{r}
 pl_stop_words <- read_lines("../!polimorfologik/polish_stopwords.txt")
 pl_stop_words <- c(pl_stop_words,
                    "canal", "http", "https", "www.hbo.pl", "hbo", "diagnoza.tvn.pl", "html", "youtu.be", "bit.ly", "www.wirtualnemedia.pl", "magicznebieszczady")
@@ -192,8 +270,11 @@ seriale_slownik <- c("czekam", "doczekać", "serial", "odcinek", "mogę", "sezon
                      "czekamy", "super", "sie", "serialem", "serialu", "premiera", "juz", "odcinka", "oglądam",
                      "odcinki", "sezonu", "sezonie", "najlepszy", "gratulacje", "obejrzeć", "obejrzec", "niecierpliwością",
                      "odcinków", "oglądać", "odcinku", "czekać", "serii", "seria", "seriali", "the", "best")
+```
 
 # rozbicie postów na słowa
+
+```{r}
 fb_posts_messages <- fb_posts %>%
    select(from_name, message) %>%
    unnest_tokens(word, message, token = "words", drop = FALSE) %>%
@@ -202,9 +283,11 @@ fb_posts_messages <- fb_posts %>%
    filter(!word %in% pl_stop_words) %>%
    filter(is.na(as.numeric(word))) %>%
    filter(nchar(word) > 2)
-
+```
 
 # najpopularniejsze słowa w postach wg fanpage
+
+```{r}
 fb_posts_messages %>%
    count(from_name, word) %>%
    ungroup() %>%
@@ -218,10 +301,11 @@ fb_posts_messages %>%
    scale_fill_distiller(palette = "RdYlGn") +
    labs(title = "Najpopularniejsze słowa w postach",
         x = "", y = "")
-
-
+```
 
 # rozbicie komentarzy na słowa
+
+```{r}
 fb_comments_messages <- fb_comments %>%
    select(post_from_name, post_id, comment_message) %>%
    unnest_tokens(word, comment_message, token = "words", drop = FALSE) %>%
@@ -231,9 +315,11 @@ fb_comments_messages <- fb_comments %>%
    filter(is.na(as.numeric(word))) %>%
    filter(nchar(word) > 2) %>%
    filter(!word %in% seriale_slownik)
-
+```
 
 # najpopularniejsze słowa w komentarzach wg fanpage
+
+```{r}
 fb_comments_messages %>%
    count(post_from_name, word) %>%
    ungroup() %>%
@@ -247,8 +333,9 @@ fb_comments_messages %>%
    scale_fill_distiller(palette = "RdYlGn") +
    labs(title = "Najpopularniejsze słowa w komentarzach",
         x = "", y = "")
+```
 
-
+```{r}
 fb_comments_messages %>%
    # ile różnych słóW występuje przy komentarzach do konkretnego posta?
    group_by(post_id) %>%
@@ -277,9 +364,88 @@ fb_comments_messages %>%
                  x = "", y = "")
       }
    )
+```
+
+# komentarze na bigramy
+
+```{r}
+fb_comments_messages_bigrams <- fb_comments %>%
+   select(post_from_name, comment_message) %>%
+   unnest_tokens(word, comment_message, token = "ngrams", n = 2, drop = FALSE) %>%
+   select(-comment_message) %>%
+   separate(word, c("word1", "word2"), sep = " ") %>%
+   filter(!word1 %in% pl_stop_words) %>%
+   filter(!word1 %in% seriale_slownik) %>%
+   filter(is.na(as.numeric(word1))) %>%
+   filter(nchar(word1) > 2) %>%
+   filter(!word2 %in% pl_stop_words) %>%
+   filter(!word2 %in% seriale_slownik) %>%
+   filter(is.na(as.numeric(word2))) %>%
+   filter(nchar(word2) > 2) %>%
+   mutate(word = paste(word1, word2, sep = " ")) %>%
+   select(-word1, -word2)
+```
+
+# Najpopularniejsze bigramy w komentarzach
+
+```{r}
+fb_comments_messages_bigrams %>%
+   count(post_from_name, word) %>%
+   ungroup() %>%
+   top_n(40, n) %>%
+   arrange(n) %>%
+   mutate(word = fct_inorder(word)) %>%
+   ggplot() +
+   geom_tile(aes(post_from_name, word, fill = n), color = "gray50") +
+   scale_fill_distiller(palette = "RdYlGn") +
+   labs(title = "Najpopularniejsze bigramy w komentarzach", x = "", y = "")
+```
+
+# Najpopularniejsze bigramy w komentarzach per serial
+
+```{r}
+fb_comments_messages_bigrams %>%
+   count(post_from_name, word) %>%
+   ungroup() %>%
+   by(.$post_from_name,
+      function(x) {
+         x %>%
+            top_n(40, n) %>%
+            arrange(n) %>%
+            mutate(word = fct_inorder(word)) %>%
+            ggplot() +
+            geom_col(aes(word, n), fill = "lightgreen", color = "gray50") +
+            coord_flip() +
+            labs(title = paste(unique(x$post_from_name), "- najpopularniejsze bigramy w komentarzach"), x = "", y = "")
+      }
+   )
+```
+
+
+# najpopularniejsze bigramy w komentarzach wystepujace na wszystkich stronach
+
+```{r}
+fb_comments_messages_bigrams %>%
+   count(post_from_name, word) %>%
+   ungroup() %>%
+   spread(post_from_name, n) %>%
+   na.omit() %>%
+   mutate(s = Belfer + `Diagnoza TVN` + Wataha) %>%
+   top_n(30, s) %>%
+   arrange(s) %>%
+   mutate(word = fct_inorder(word)) %>%
+   select(-s) %>%
+   gather(key, val, -word) %>%
+   ggplot() +
+   geom_tile(aes(key, word, fill = val), color = "gray50") +
+   scale_fill_distiller(palette = "RdYlGn") +
+   labs(title = "Najpopularniejsze bigramy w komentarzach wystepujace na wszystkich stronach", x = "", y = "")
+```
 
 
 # kto komentuje na wszystkich serialach?
+
+```{r}
 fb_data %>%
    count(post_from_name, comments_from_name, sort = TRUE) %>%
    ungroup() %>%
@@ -296,70 +462,4 @@ fb_data %>%
    geom_tile(aes(serial, comments_from_name, fill = val), color = "gray50", show.legend = FALSE) +
    scale_fill_distiller(palette = "RdYlGn") +
    labs(title = "Komentujcacy wszystkie seriale", x = "", y = "")
-
-
-
-# komentarze na bigramy
-fb_comments_messages_bigrams <- fb_comments %>%
-   select(post_from_name, comment_message) %>%
-   unnest_tokens(word, comment_message, token = "ngrams", n = 2, drop = FALSE) %>%
-   select(-comment_message) %>%
-   separate(word, c("word1", "word2"), sep = " ") %>%
-   filter(!word1 %in% pl_stop_words) %>%
-   filter(!word1 %in% seriale_slownik) %>%
-   filter(is.na(as.numeric(word1))) %>%
-   filter(nchar(word1) > 2) %>%
-   filter(!word2 %in% pl_stop_words) %>%
-   filter(!word2 %in% seriale_slownik) %>%
-   filter(is.na(as.numeric(word2))) %>%
-   filter(nchar(word2) > 2) %>%
-   mutate(word = paste(word1, word2, sep = " ")) %>%
-   select(-word1, -word2)
-
-
-fb_comments_messages_bigrams %>%
-   count(post_from_name, word) %>%
-   ungroup() %>%
-   by(.$post_from_name,
-      function(x) {
-         x %>%
-            top_n(40, n) %>%
-            arrange(n) %>%
-            mutate(word = fct_inorder(word)) %>%
-            ggplot() +
-            geom_col(aes(word, n), fill = "lightgreen", color = "gray50") +
-            coord_flip() +
-            labs(title = paste(unique(x$post_from_name), "- najpopularniejsze bigramy w komentarzach"), x = "", y = "")
-      }
-   )
-
-
-# Najpopularniejsze bigramy w komentarzach
-fb_comments_messages_bigrams %>%
-   count(post_from_name, word) %>%
-   ungroup() %>%
-   top_n(40, n) %>%
-   arrange(n) %>%
-   mutate(word = fct_inorder(word)) %>%
-   ggplot() +
-   geom_tile(aes(post_from_name, word, fill = n), color = "gray50") +
-   scale_fill_distiller(palette = "RdYlGn") +
-   labs(title = "Najpopularniejsze bigramy w komentarzach", x = "", y = "")
-
-
-# najpopularniejsze bigramy w komentarzach wystepujace na wszystkich stronach
-fb_comments_messages_bigrams %>%
-   count(post_from_name, word) %>%
-   ungroup() %>%
-   spread(post_from_name, n) %>%
-   na.omit() %>%
-   mutate(s = Belfer + `Diagnoza TVN` + Wataha) %>%
-   top_n(30, s) %>%
-   arrange(s) %>%
-   mutate(word = fct_inorder(word)) %>%
-   select(-s) %>%
-   gather(key, val, -word) %>%
-   ggplot() +
-   geom_tile(aes(key, word, fill = val), color = "gray50") +
-   scale_fill_distiller(palette = "RdYlGn") +
-   labs(title = "Najpopularniejsze bigramy w komentarzach wystepujace na wszystkich stronach", x = "", y = "")
+```
